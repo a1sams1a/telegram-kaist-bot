@@ -1,7 +1,0 @@
-===KAIST BOT===
-VER: 0.0.1 DEV1
-DATE: 20150719
-
-=CONTRIBUTERS=
-Sam Jo (SoC)
-
