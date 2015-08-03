@@ -60,6 +60,25 @@ func update_river() BotData {
 	return rdata
 }
 
+// update weather
+func update_weather() BotData {
+	data, err := ioutil.ReadFile("extdata_weather.txt")
+	if err != nil {
+		fmt.Println("Fatal(0x4): Unable to read external data file")
+		return BotData{data: "Fatal(0x4)", created: time.Now()}
+	}
+
+	arr := strings.Split(string(data), ",")
+	if len(arr) < 4 {
+		fmt.Println("Fatal(0x5): Format of external data file is not expected")
+		return BotData{data: "Fatal(0x5)", created: time.Now()}
+	}
+
+	rdata := BotData{data: msgfmt("weather", arr[0], arr[1], arr[2], arr[3]), created: time.Now()}
+	data_map["weather"] = rdata
+	return rdata
+}
+
 // SECTION - HANDLER FUNCTION
 // about - display bot infos
 func handler_about(bot *telebot.Bot, msg telebot.Message, args []string) {
@@ -107,6 +126,15 @@ func handler_river(bot *telebot.Bot, msg telebot.Message, args []string) {
 	bot.SendMessage(msg.Chat, rdata.data, nil)
 }
 
+// weather - get weather information of Daejon
+func handler_weather(bot *telebot.Bot, msg telebot.Message, args []string) {
+	rdata, ok := data_map["weather"]
+	if !ok || time.Since(rdata.created).Hours() >= 2 {
+		rdata = update_weather()
+	}
+	bot.SendMessage(msg.Chat, rdata.data, nil)
+}
+
 // SECTION - MAIN
 // top-level handler for KAIST BOT
 func handler(bot *telebot.Bot, msg telebot.Message) {
@@ -122,6 +150,8 @@ func handler(bot *telebot.Bot, msg telebot.Message) {
 		handler_rand(bot, msg, args)
 	case "river":
 		handler_river(bot, msg, args)
+	case "weather":
+		handler_weather(bot, msg, args)
 	default:
 		handler_unknown(bot, msg, args)
 	}
