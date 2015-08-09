@@ -42,10 +42,40 @@ func msgfmt(key string, args ...interface{}) string {
 }
 
 // SECTION - DATA FUNCTION
-// get external data
-func get_external(name string, expire int, argn int) string {
+// check update time
+func should_update(o time.Time, expire string) bool {
+	switch expire {
+	case "d":
+		return time.Now().Day() != o.Day()
+	default:
+		num, err := strconv.Atoi(expire)
+		return err == nil && time.Since(o).Hours() >= float64(num)
+	}
+	return false
+}
+
+// read data file and get the content
+func get_data(name string) string {
 	rdata, ok := data_map[name]
-	if !ok || time.Since(rdata.created).Hours() >= float64(expire) {
+	if ok {
+		return rdata.data
+	}
+
+	fmt.Println("Info(0x2): Try to read data of " + name)
+	data, err := ioutil.ReadFile("data_" + name + ".txt")
+	if err != nil {
+		fmt.Println("Fatal(0x7): Unable to read data file")
+		return ""
+	}
+
+	data_map[name] = BotData{data: string(data), created: time.Now()}
+	return data_map[name].data
+}
+
+// get external data
+func get_external(name string, expire string, argn int) string {
+	rdata, ok := data_map[name]
+	if !ok || should_update(rdata.created, expire) {
 		fmt.Println("Info(0x1): Execute external update script of " + name)
 		rdata = update_external(name, argn)
 	}
@@ -54,7 +84,7 @@ func get_external(name string, expire int, argn int) string {
 
 // update general logic
 func update_external(name string, argn int) BotData {
-	_, err := exec.Command("./" + name + ".py").Output()
+	_, err := exec.Command("./update_" + name + ".py").Output()
 	if err != nil {
 		fmt.Println("Fatal(0x4): Unable to execute update script")
 		return BotData{data: "Fatal(0x4)", created: time.Now()}
@@ -85,17 +115,17 @@ func update_external(name string, argn int) BotData {
 // SECTION - HANDLER FUNCTION
 // about - display bot infos
 func handler_about(bot *telebot.Bot, msg telebot.Message, args []string) {
-	bot.SendMessage(msg.Chat, msgfmt("about"), nil)
+	bot.SendMessage(msg.Chat, get_data("about"), nil)
 }
 
 // start - display init message
 func handler_start(bot *telebot.Bot, msg telebot.Message, args []string) {
-	bot.SendMessage(msg.Chat, msgfmt("start"), nil)
+	bot.SendMessage(msg.Chat, get_data("start"), nil)
 }
 
 // help - display help message
 func handler_help(bot *telebot.Bot, msg telebot.Message, args []string) {
-	bot.SendMessage(msg.Chat, msgfmt("help"), nil)
+	bot.SendMessage(msg.Chat, get_data("help"), nil)
 }
 
 // unknown - default handler for unknown command
@@ -120,16 +150,52 @@ func handler_rand(bot *telebot.Bot, msg telebot.Message, args []string) {
 	bot.SendMessage(msg.Chat, msgfmt("rand", num, result), nil)
 }
 
+// food - get menu of north, east, west cafe
+func handler_food(bot *telebot.Bot, msg telebot.Message, args []string) {
+	if len(args) == 0 {
+		bot.SendMessage(msg.Chat, msgfmt("food_noarg"), nil)
+		return
+	}
+
+	if args[0] != "n" && args[0] != "w" && args[0] != "e" {
+		bot.SendMessage(msg.Chat, msgfmt("food_invarg"), nil)
+		return
+	}
+}
+
 // river - get temp information of Hangang and Gapchun
 func handler_river(bot *telebot.Bot, msg telebot.Message, args []string) {
 	bot.SendChatAction(msg.Chat, "typing")
-	bot.SendMessage(msg.Chat, get_external("river", 2, 3), nil)
+	bot.SendMessage(msg.Chat, get_external("river", "2", 3), nil)
 }
 
 // weather - get weather information of Daejon
 func handler_weather(bot *telebot.Bot, msg telebot.Message, args []string) {
 	bot.SendChatAction(msg.Chat, "typing")
-	bot.SendMessage(msg.Chat, get_external("weather", 2, 4), nil)
+	bot.SendMessage(msg.Chat, get_external("weather", "2", 4), nil)
+}
+
+// store - get store opening time
+func handler_store(bot *telebot.Bot, msg telebot.Message, args []string) {
+	bot.SendMessage(msg.Chat, get_data("store"), nil)
+}
+
+// loc - search building number by name
+func handler_loc(bot *telebot.Bot, msg telebot.Message, args []string) {
+	if len(args) == 0 {
+		bot.SendMessage(msg.Chat, msgfmt("loc_noarg"), nil)
+		return
+	}
+
+	data := get_data("loc")
+	arr := strings.Split(data, ",")
+	result := ""
+	for _, v := range arr {
+		if strings.Contains(v, args[0]) {
+			result += v + "\n"
+		}
+	}
+	bot.SendMessage(msg.Chat, msgfmt("loc", result), nil)
 }
 
 // SECTION - MAIN
@@ -149,6 +215,12 @@ func handler(bot *telebot.Bot, msg telebot.Message) {
 		handler_river(bot, msg, args)
 	case "weather":
 		handler_weather(bot, msg, args)
+	case "store":
+		handler_store(bot, msg, args)
+	case "loc":
+		handler_loc(bot, msg, args)
+	case "food":
+		handler_food(bot, msg, args)
 	default:
 		handler_unknown(bot, msg, args)
 	}
