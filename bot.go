@@ -41,6 +41,17 @@ func msgfmt(key string, args ...interface{}) string {
 	return fmt.Sprintf(msg_map[key], args...)
 }
 
+// split data first and then fmt
+func datafmt(key string, args string) string {
+	arr := strings.Split(string(args), ",")
+
+	dt := make([]interface{}, len(arr))
+	for i := range arr {
+		dt[i] = arr[i]
+	}
+	return msgfmt(key, dt...)
+}
+
 // SECTION - DATA FUNCTION
 // check update time
 func should_update(o time.Time, expire string) bool {
@@ -72,44 +83,21 @@ func get_data(name string) string {
 	return data_map[name].data
 }
 
-// get external data
-func get_external(name string, expire string, argn int) string {
+// check update status of external data
+func check_external(name string, expire string) bool {
 	rdata, ok := data_map[name]
-	if !ok || should_update(rdata.created, expire) {
-		fmt.Println("Info(0x1): Execute external update script of " + name)
-		rdata = update_external(name, argn)
+	if ok && !should_update(rdata.created, expire) {
+		return true
 	}
-	return rdata.data
-}
 
-// update general logic
-func update_external(name string, argn int) BotData {
-	_, err := exec.Command("./update_" + name + ".py").Output()
+	script_name := strings.Split(name, "_")[0]
+	fmt.Println("Info(0x1): Execute external update script of " + script_name)
+	_, err := exec.Command("./update_" + script_name + ".py").Output()
 	if err != nil {
 		fmt.Println("Fatal(0x4): Unable to execute update script")
-		return BotData{data: "Fatal(0x4)", created: time.Now()}
+		return false
 	}
-
-	data, err := ioutil.ReadFile("extdata_" + name + ".txt")
-	if err != nil {
-		fmt.Println("Fatal(0x5): Unable to read external data file")
-		return BotData{data: "Fatal(0x5)", created: time.Now()}
-	}
-
-	arr := strings.Split(string(data), ",")
-	if len(arr) != argn {
-		fmt.Println("Fatal(0x6): Unexpected format of external data file")
-		return BotData{data: "Fatal(0x6)", created: time.Now()}
-	}
-
-	dt := make([]interface{}, len(arr))
-	for i := range arr {
-		dt[i] = arr[i]
-	}
-
-	rdata := BotData{data: msgfmt(name, dt...), created: time.Now()}
-	data_map[name] = rdata
-	return rdata
+	return true
 }
 
 // SECTION - HANDLER FUNCTION
@@ -161,18 +149,38 @@ func handler_food(bot *telebot.Bot, msg telebot.Message, args []string) {
 		bot.SendMessage(msg.Chat, msgfmt("food_invarg"), nil)
 		return
 	}
+
+	iname := "food_" + args[0]
+	if !check_external(iname, "d") {
+		bot.SendMessage(msg.Chat, "Fatal(0x4)", nil)
+		return
+	}
+
+	bot.SendMessage(msg.Chat, msgfmt(iname, get_data(iname)), nil)
 }
 
 // river - get temp information of Hangang and Gapchun
 func handler_river(bot *telebot.Bot, msg telebot.Message, args []string) {
 	bot.SendChatAction(msg.Chat, "typing")
-	bot.SendMessage(msg.Chat, get_external("river", "2", 3), nil)
+
+	if !check_external("river", "2") {
+		bot.SendMessage(msg.Chat, "Fatal(0x4)", nil)
+		return
+	}
+
+	bot.SendMessage(msg.Chat, datafmt("river", get_data("river")), nil)
 }
 
 // weather - get weather information of Daejon
 func handler_weather(bot *telebot.Bot, msg telebot.Message, args []string) {
 	bot.SendChatAction(msg.Chat, "typing")
-	bot.SendMessage(msg.Chat, get_external("weather", "2", 4), nil)
+
+	if !check_external("weather", "2") {
+		bot.SendMessage(msg.Chat, "Fatal(0x4)", nil)
+		return
+	}
+
+	bot.SendMessage(msg.Chat, datafmt("weather", get_data("weather")), nil)
 }
 
 // store - get store opening time
@@ -244,7 +252,6 @@ func main() {
 
 	err = json.Unmarshal(data, &msg_map)
 	if err != nil {
-		fmt.Println(err)
 		fmt.Println("Fatal(0x2): Unable to parse msg file")
 		return
 	}

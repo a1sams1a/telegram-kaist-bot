@@ -13,7 +13,10 @@ for loc in rlist:
     soup = BeautifulSoup(r.text, "lxml")
     result = soup.select('table.menuTb tbody td')
 
-    f = open('extdata_food_' + loc + '.txt', 'w')
+    f = open('data_food_' + loc + '.txt', 'w')
     for i in range(3):
         f.write('===' + tlist[i] + '===\n' + result[i].get_text().strip().encode('utf-8'))
+        if i != 2:
+            f.write('\n\n\n')
+
     f.close()

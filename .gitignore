@@ -27,4 +27,6 @@ _testmain.go
 run
 
 # Generated external data
-extdata_*.txt
+data_food_*.txt
+data_river.txt
+data_weather.txt

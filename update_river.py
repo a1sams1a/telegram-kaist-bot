@@ -24,6 +24,6 @@ for tr in result2:
 
 time = str(datetime.datetime.now().time().hour)
 
-f = open('extdata_river.txt', 'w')
+f = open('data_river.txt', 'w')
 f.write(time + ',' + guri + ',' + gapchun)
 f.close()
