@@ -25,5 +25,5 @@ for tr in result2:
 time = str(datetime.datetime.now().time().hour)
 
 f = open('data_river.txt', 'w')
-f.write(time + ',' + guri + ',' + gapchun)
+f.write(time + ',' + guri.encode('utf-8') + ',' + gapchun.encode('utf-8'))
 f.close()
